@@ -253,7 +253,16 @@ function vA2write(){
     log.shown++; log.events.push({type:"shown", idx:used, t:Date.now()-start}); store.a2log=log; save(); };
   const hide=(why)=>{ if (!cur) return; if (why==="dismissed"){ log.dismissed++; log.events.push({type:"dismissed", idx:used, t:Date.now()-start}); used++; } ghost.textContent=""; cur=null; acc.disabled=true; dis.disabled=true; store.a2log=log; save(); };
   const accept=()=>{ if (!cur) return; const needSpace = ta.value.length && !/\s$/.test(ta.value); ta.value += (needSpace?" ":"") + cur + " "; log.accepted++; log.acceptedWords += wordCount(cur); log.events.push({type:"accepted", idx:used, t:Date.now()-start}); used++; ghost.textContent=""; cur=null; acc.disabled=true; dis.disabled=true; store.a2text=ta.value; store.a2log=log; save(); refresh(); ta.focus(); };
-  ta.addEventListener("input", ()=>{ if (cur) hide("dismissed"); refresh(); store.a2text=ta.value; save(); clearTimeout(timer); timer=setTimeout(show,1500); });
+  // 입력 감지는 이벤트가 아니라 값 폴링으로 (모바일 한글 IME는 input 이벤트가 불규칙) — 1.5초 멈추면 제안
+  let lastVal = ta.value, lastChange = Date.now(), shownFor = null;
+  const onChange=()=>{ const v=ta.value; if (v===lastVal) return false; lastVal=v; lastChange=Date.now(); if (cur) hide("dismissed"); refresh(); store.a2text=v; save(); return true; };
+  ta.addEventListener("input", onChange);
+  ta.addEventListener("compositionupdate", onChange);
+  timer = setInterval(()=>{
+    if (!document.body.contains(ta)) { clearInterval(timer); return; }
+    if (onChange()) return;
+    if (!cur && Date.now()-lastChange>=1500 && ta.value.trim().length>=10 && ta.value!==shownFor) { shownFor=ta.value; show(); }
+  }, 200);
   ta.addEventListener("keydown", e=>{ if (e.key==="Tab" && cur){ e.preventDefault(); accept(); } if (e.key==="Escape" && cur){ hide("dismissed"); } });
   ta.addEventListener("focus", ()=>ed.classList.add("focus")); ta.addEventListener("blur", ()=>ed.classList.remove("focus"));
   acc.onclick = accept; dis.onclick = ()=>hide("dismissed");
